@@ -11,24 +11,12 @@ from datetime import datetime, timedelta
 
 
 def main():
-    default_project = get_default_project()
-
     parser = argparse.ArgumentParser(
         description="Prune old Docker images from the Google Container Registry. Example usage:\nprune-gcr www"
     )
     parser.add_argument(
-        "--project",
-        required=default_project is None,
-        default=default_project,
-        help="name of the Google Cloud project. {}".format(
-            f"Defaults to {default_project}."
-            if default_project is not None
-            else "Must be specified."
-        ),
-    )
-    parser.add_argument(
         "repository",
-        help="short name of the GCR image repository (as in: gcr.io/<project>/<repository>)",
+        help="full name of the GCR image repository (as in: gcr.io/project/repository)",
     )
     parser.add_argument(
         "--older-than",
@@ -51,7 +39,7 @@ def main():
     )
     args = parser.parse_args()
 
-    repository = f"gcr.io/{args.project}/{args.repository}"
+    repository = args.repository
     print(f"Querying GCP for images in {repository}...")
     digests = get_digests_to_prune(
         repository, args.older_than, keep_at_least=args.keep_at_least
@@ -66,14 +54,6 @@ def main():
             print(f"- {digest}")
     else:
         delete_images(repository, digests)
-
-
-def get_default_project():
-    with open(os.devnull, "w") as devnull:
-        project = subprocess.check_output(
-            ["gcloud", "config", "get-value", "project"], stderr=devnull
-        )
-    return project.decode().strip() if project else None
 
 
 def date(date_string):
