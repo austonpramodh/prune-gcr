@@ -2,8 +2,6 @@
 
 import argparse
 import json
-import logging
-import os
 import re
 import subprocess
 
@@ -37,12 +35,19 @@ def main():
         action="store_true",
         help="don't actually remove the old images, just print them",
     )
+    parser.add_argument(
+        "--filter-tags",
+        default="",
+        type=ascii,
+        metavar="TAG",
+        help="prune images that match the filter tag TAG",
+    )
     args = parser.parse_args()
 
     repository = args.repository
     print(f"Querying GCP for images in {repository}...")
     digests = get_digests_to_prune(
-        repository, args.older_than, keep_at_least=args.keep_at_least
+        repository, args.older_than, keep_at_least=args.keep_at_least, filter_regex=args.filter_tags
     )
 
     if args.dry_run:
@@ -60,7 +65,7 @@ def date(date_string):
     return datetime.strptime(date_string, "%Y-%m-%d").date()
 
 
-def get_digests_to_prune(repository, older_than, keep_at_least=0):
+def get_digests_to_prune(repository, older_than, keep_at_least=0, filter_regex=""):
     entries = get_all_image_entries(repository)
 
     try:
@@ -76,8 +81,12 @@ def get_digests_to_prune(repository, older_than, keep_at_least=0):
     )
     retention_index = len(entries) - retention_count
 
-    print(f"{retention_index} out of {len(entries)} images are eligible to be pruned")
-    return [entry["digest"] for entry in entries[:retention_index]]
+    # filter with the tag on entries
+    tag_filtered_entries = get_tag_filtered_image_entries(entries[:retention_index], filter_regex)
+
+    print(f"{len(tag_filtered_entries)} out of {len(entries)} images are eligible to be pruned")
+    
+    return [entry["digest"] for entry in tag_filtered_entries]
 
 
 def get_all_image_entries(repository):
@@ -93,7 +102,7 @@ def get_all_image_entries(repository):
             "--sort-by",
             "timestamp",
             "--format",
-            "json(digest, timestamp)",
+            "json(digest, timestamp, tags)",
             "--quiet",
         ]
     )
@@ -114,6 +123,16 @@ def last_index_older_than(entries, older_than):
             cutoff=older_than.strftime("%Y-%m-%d")
         )
     )
+
+def get_tag_filtered_image_entries(entries, filter_regex):
+    filtered_entries = []
+    for entry in entries:
+        tags = entry["tags"]
+        # Try matching regex and see if any tag matches
+        compiled_filter_regex=re.compile(filter_regex.strip('\''))
+        if all(re.match(compiled_filter_regex, tag) for tag in tags):
+            filtered_entries.append(entry)
+    return filtered_entries
 
 
 def delete_images(repository, digests):

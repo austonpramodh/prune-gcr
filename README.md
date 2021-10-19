@@ -10,6 +10,7 @@ The script requires Python 3.9. You can run it with `./prune-gcr <repository>`.
 ```
 usage: prune-gcr [-h] [--older-than CUTOFF]
                  [--keep-at-least N]
+                 [--filter-tags EXP]
                  repository
 
 Prune old Docker images from the Google Container Registry. Example usage:
@@ -26,4 +27,6 @@ optional arguments:
                        ago.
   --keep-at-least N    keep at least N images, even if they are older than the
                        cutoff date. Defaults to 50.
+  --filter-tags EXP    only prune images with the tags matching the regular 
+                       expression
 ```
